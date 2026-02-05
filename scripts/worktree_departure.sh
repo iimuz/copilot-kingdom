@@ -233,6 +233,103 @@ create_symlinks() {
 }
 
 # ============================================================================
+# Tmux Session Management (PHASE-4)
+# ============================================================================
+
+create_tmux_session() {
+  log_info "Creating tmux session with 1x2 layout..."
+
+  # Check if running inside tmux
+  local inside_tmux=false
+  if [[ -n "$TMUX" ]]; then
+    inside_tmux=true
+  fi
+
+  # TASK-026: Create 1x2 tmux grid (not 3x3)
+  if [[ "${inside_tmux}" == true ]]; then
+    AGENT_SESSION=$(tmux display-message -p "#{session_name}")
+    CURRENT_WINDOW=$(tmux display-message -p "#{window_name}")
+    AGENT_WINDOW="${CURRENT_WINDOW}-agents"
+    tmux new-window -t "$AGENT_SESSION" -n "$AGENT_WINDOW"
+    log_info "Running inside tmux, created new window: ${AGENT_WINDOW}"
+  else
+    AGENT_SESSION="multi"
+    AGENT_WINDOW="agents"
+    tmux new-session -d -s "$AGENT_SESSION" -n "$AGENT_WINDOW"
+    log_info "Created new tmux session: ${AGENT_SESSION}"
+  fi
+
+  # Create 1x2 grid: split horizontally once
+  tmux split-window -h -t "$AGENT_SESSION:$AGENT_WINDOW"
+
+  # Set pane titles
+  tmux select-pane -t "$AGENT_SESSION:$AGENT_WINDOW.0" -T "shogun"
+  tmux select-pane -t "$AGENT_SESSION:$AGENT_WINDOW.1" -T "karo"
+
+  log_info "Created 1x2 tmux grid successfully"
+}
+
+configure_pane_environment() {
+  local pane_index="$1"
+  local pane_name="$2"
+  local worktree_path="$3"
+  local other_pane_index="$4"
+  local other_pane_name="$5"
+
+  log_info "Configuring ${pane_name} pane (${pane_index})..."
+
+  # Get absolute worktree path
+  local abs_worktree_path
+  abs_worktree_path=$(cd "$(dirname "${worktree_path}")" && pwd)/$(basename "${worktree_path}")
+
+  # TASK-027/TASK-028: cd to worktree
+  # TASK-029/TASK-030: Set environment variables
+  local env_vars="export AGENT_SESSION=${AGENT_SESSION} AGENT_PANE_${other_pane_name^^}=${other_pane_index}"
+
+  tmux send-keys -t "$AGENT_SESSION:$AGENT_WINDOW.${pane_index}" \
+    "cd ${abs_worktree_path} && ${env_vars} && clear" Enter
+
+  log_info "  Environment configured for ${pane_name}"
+}
+
+launch_copilot_cli() {
+  local pane_index="$1"
+  local agent_name="$2"
+
+  log_info "Launching Copilot CLI for ${agent_name}..."
+
+  # TASK-031/TASK-032: Launch Copilot CLI with --agent flag
+  tmux send-keys -t "$AGENT_SESSION:$AGENT_WINDOW.${pane_index}" \
+    "copilot --agent ${agent_name} --model claude-haiku-4.5 --allow-all-tools" Enter
+
+  log_info "  Copilot CLI launched for ${agent_name}"
+}
+
+validate_copilot_startup() {
+  log_info "Validating Copilot CLI startup..."
+
+  # TASK-033: Wait for Copilot CLI to be ready
+  local max_wait=30
+  local waited=0
+
+  while [[ ${waited} -lt ${max_wait} ]]; do
+    if tmux capture-pane -t "$AGENT_SESSION:$AGENT_WINDOW.0" -p | grep -q "cycle mode"; then
+      log_info "  Shogun Copilot CLI ready (${waited}s)"
+      break
+    fi
+    sleep 1
+    ((waited++))
+  done
+
+  if [[ ${waited} -ge ${max_wait} ]]; then
+    log_warn "Copilot CLI startup validation timeout (${max_wait}s)"
+    log_warn "Copilot may still be initializing"
+  else
+    log_info "Copilot CLI startup validated successfully"
+  fi
+}
+
+# ============================================================================
 # Main Setup Flow
 # ============================================================================
 
@@ -285,7 +382,32 @@ main() {
   fi
 
   log_info ""
-  log_info "✓ Multi-Worktree Agent System setup complete!"
+  log_info "Workspace setup complete"
+  log_info ""
+
+  # PHASE-4: Create tmux session and launch agents
+  if ! create_tmux_session; then
+    log_error "Failed to create tmux session"
+    exit 1
+  fi
+
+  # TASK-027, TASK-029: Configure Shogun pane
+  configure_pane_environment 0 "shogun" "${SHOGUN_WORKTREE}" 1 "karo"
+
+  # TASK-028, TASK-030: Configure Karo pane
+  configure_pane_environment 1 "karo" "${KARO_WORKTREE}" 0 "shogun"
+
+  # TASK-031: Launch Copilot CLI in Shogun pane
+  launch_copilot_cli 0 "shogun"
+
+  # TASK-032: Launch Copilot CLI in Karo pane
+  launch_copilot_cli 1 "karo"
+
+  # TASK-033: Validate startup
+  validate_copilot_startup
+
+  log_info ""
+  log_info "Multi-Worktree Agent System deployment complete"
   log_info ""
   log_info "Workspace structure:"
   log_info "  Shogun: ${SHOGUN_WORKTREE}"
@@ -295,9 +417,12 @@ main() {
   log_info "  ${SHOGUN_QUEUE_SYMLINK} → Karo's shared_context/"
   log_info "  ${SHOGUN_DASHBOARD_SYMLINK} → Karo's dashboard.md"
   log_info ""
-  log_info "Next steps:"
-  log_info "  1. cd ${SHOGUN_WORKTREE} (Shogun workspace)"
-  log_info "  2. cd ${KARO_WORKTREE} (Karo workspace)"
+  log_info "Tmux session:"
+  log_info "  Session: ${AGENT_SESSION}"
+  log_info "  Window: ${AGENT_WINDOW}"
+  log_info "  Panes: 2 (shogun, karo)"
+  log_info ""
+  log_info "Connect with: tmux attach-session -t ${AGENT_SESSION}"
   log_info ""
 }
 
