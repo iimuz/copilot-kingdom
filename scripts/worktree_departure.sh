@@ -300,7 +300,7 @@ launch_copilot_cli() {
 
   # TASK-031/TASK-032: Launch Copilot CLI with --agent flag
   tmux send-keys -t "$AGENT_SESSION:$AGENT_WINDOW.${pane_index}" \
-    "copilot --model claude-haiku-4.5 --allow-all-tools" Enter
+    "copilot --agent ${agent_name} --model claude-haiku-4.5 --allow-all-tools" Enter
 
   log_info "  Copilot CLI launched for ${agent_name}"
 }
