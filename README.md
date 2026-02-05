@@ -152,47 +152,52 @@ export KARO_WORKTREE="/path/to/karo"
 
 ### Model Configuration
 
-Edit agent instruction files in `.github/agents/` to specify models:
+Edit agent definition files in `.github/agents/` to specify models:
 
 - Shogun: Typically uses higher-tier models (Sonnet, Opus)
 - Karo: Can use efficient models (Haiku) for orchestration
 
-## Skills
+## Agents
 
-Agents in this system are defined as **skills** rather than persistent agent files. This makes them reusable and easier to maintain.
+This system uses an **agent-based architecture** where agents are loaded automatically with the `--agent` flag. Agents have persistent context and can access specialized tools and workflows.
 
-### Available Skills
+### Available Agents
 
-- **shogun** (`.github/skills/shogun.md`)
+- **shogun** (`.github/agents/shogun.md`)
   - Strategic coordinator
   - Handles both direct work and delegation
   - Decides task complexity and routing
-- **karo** (`.github/skills/karo.md`)
+  - Auto-loaded in Shogun's worktree
+- **karo** (`.github/agents/karo.md`)
   - Task orchestrator
   - Decomposes complex tasks
   - Manages subagent execution via task tool
+  - Auto-loaded in Karo's worktree
+
+### Supporting Skills
+
 - **send-to-karo** (`.github/skills/send-to-karo/`)
   - Notification skill for tmux send-keys
   - Wakes up Karo when new tasks are queued
   - Event-driven communication
 
-### Using Skills
+### Using the System
 
-In Shogun's workspace:
+Agents are automatically loaded when Copilot CLI starts with the `--agent` flag:
 
 ```bash
-# Invoke Shogun skill when needed
-skill shogun
+# In Shogun's workspace - shogun agent auto-loads
+gh copilot --agent shogun
 
-# Notify Karo after writing tasks
-skill send-to-karo
+# In Karo's workspace - karo agent auto-loads
+gh copilot --agent karo
 ```
 
-In Karo's workspace:
+The `send-to-karo` skill is invoked explicitly when needed:
 
 ```bash
-# Invoke Karo skill when notified
-skill karo
+# Notify Karo after writing tasks
+skill send-to-karo
 ```
 
 ## Project Structure
@@ -200,9 +205,10 @@ skill karo
 ```
 copilot-kingdom/
 ├── .github/
+│   ├── agents/                   # Agent definitions
+│   │   ├── shogun.md             # Shogun agent (strategic coordinator)
+│   │   └── karo.md               # Karo agent (task orchestrator)
 │   └── skills/                   # Skill definitions
-│       ├── shogun.md             # Shogun skill (strategic coordinator)
-│       ├── karo.md               # Karo skill (task orchestrator)
 │       └── send-to-karo/         # Notification skill
 │           ├── skill.md
 │           └── scripts/send.sh
