@@ -1,0 +1,8 @@
+[tools]
+nodejs = "24"
+pnpm = "latest"
+shellcheck = "latest"
+shfmt = "latest"
+
+[env]
+mise.file = ".env"

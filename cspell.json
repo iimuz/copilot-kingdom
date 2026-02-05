@@ -1,0 +1,23 @@
+{
+  "words": ["eeuo", "iimuz"],
+  "ignoreWords": [],
+  "flagWords": [],
+  "allowCompoundWords": true,
+  "dictionaries": [
+    "bash",
+    "companies",
+    "en_US",
+    "filetypes",
+    "fonts",
+    "misc",
+    "npm",
+    "softwareTerms"
+  ],
+  "ignorePaths": [
+    ".git/",
+    "**/.gitignore",
+    "**/package.json",
+    "**/pnpm-lock.yaml",
+    "**/node_modules/"
+  ]
+}
