@@ -305,6 +305,21 @@ launch_copilot_cli() {
   log_info "  Copilot CLI launched for ${agent_name}"
 }
 
+pre_populate_skill_command() {
+  local pane_index="$1"
+  local skill_name="$2"
+
+  log_info "Pre-populating skill command for ${skill_name}..."
+
+  # Wait for Copilot CLI to be ready before sending skill command
+  sleep 2
+
+  # Send skill command without Enter (user will confirm on first use)
+  tmux send-keys -t "$AGENT_SESSION:$AGENT_WINDOW.${pane_index}" "skill ${skill_name}"
+
+  log_info "  Skill command pre-populated (awaiting user confirmation)"
+}
+
 validate_copilot_startup() {
   log_info "Validating Copilot CLI startup..."
 
@@ -405,6 +420,10 @@ main() {
 
   # TASK-033: Validate startup
   validate_copilot_startup
+
+  # Pre-populate skill commands (without Enter - user confirms on first use)
+  pre_populate_skill_command 0 "shogun"
+  pre_populate_skill_command 1 "karo"
 
   log_info ""
   log_info "Multi-Worktree Agent System deployment complete"
