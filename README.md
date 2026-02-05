@@ -157,13 +157,55 @@ Edit agent instruction files in `.github/agents/` to specify models:
 - Shogun: Typically uses higher-tier models (Sonnet, Opus)
 - Karo: Can use efficient models (Haiku) for orchestration
 
+## Skills
+
+Agents in this system are defined as **skills** rather than persistent agent files. This makes them reusable and easier to maintain.
+
+### Available Skills
+
+- **shogun** (`.github/skills/shogun.md`)
+  - Strategic coordinator
+  - Handles both direct work and delegation
+  - Decides task complexity and routing
+- **karo** (`.github/skills/karo.md`)
+  - Task orchestrator
+  - Decomposes complex tasks
+  - Manages subagent execution via task tool
+- **send-to-karo** (`.github/skills/send-to-karo/`)
+  - Notification skill for tmux send-keys
+  - Wakes up Karo when new tasks are queued
+  - Event-driven communication
+
+### Using Skills
+
+In Shogun's workspace:
+
+```bash
+# Invoke Shogun skill when needed
+skill shogun
+
+# Notify Karo after writing tasks
+skill send-to-karo
+```
+
+In Karo's workspace:
+
+```bash
+# Invoke Karo skill when notified
+skill karo
+```
+
 ## Project Structure
 
 ```
 copilot-kingdom/
 ├── .github/
-│   └── skills/                   # Shared skills (available to all agents)
-│       └── send-to-karo/         # Shogun's delegation skill
+│   └── skills/                   # Skill definitions
+│       ├── shogun.md             # Shogun skill (strategic coordinator)
+│       ├── karo.md               # Karo skill (task orchestrator)
+│       └── send-to-karo/         # Notification skill
+│           ├── skill.md
+│           └── scripts/send.sh
 ├── scripts/
 │   └── worktree_departure.sh     # System startup script
 ├── worktrees/                    # Created at runtime
