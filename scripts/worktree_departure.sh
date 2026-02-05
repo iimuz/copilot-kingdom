@@ -300,7 +300,7 @@ launch_copilot_cli() {
 
   # TASK-031/TASK-032: Launch Copilot CLI with --agent flag
   tmux send-keys -t "$AGENT_SESSION:$AGENT_WINDOW.${pane_index}" \
-    "copilot --agent ${agent_name} --model claude-haiku-4.5 --allow-all-tools" Enter
+    "copilot --model claude-haiku-4.5 --allow-all-tools" Enter
 
   log_info "  Copilot CLI launched for ${agent_name}"
 }
@@ -311,11 +311,8 @@ pre_populate_skill_command() {
 
   log_info "Pre-populating skill command for ${skill_name}..."
 
-  # Wait for Copilot CLI to be ready before sending skill command
-  sleep 2
-
   # Send skill command without Enter (user will confirm on first use)
-  tmux send-keys -t "$AGENT_SESSION:$AGENT_WINDOW.${pane_index}" "skill ${skill_name}"
+  tmux send-keys -t "$AGENT_SESSION:$AGENT_WINDOW.${pane_index}" "use /${skill_name}. "
 
   log_info "  Skill command pre-populated (awaiting user confirmation)"
 }
@@ -328,11 +325,12 @@ validate_copilot_startup() {
   local waited=0
 
   while [[ ${waited} -lt ${max_wait} ]]; do
-    if tmux capture-pane -t "$AGENT_SESSION:$AGENT_WINDOW.0" -p | grep -q "cycle mode"; then
+    if tmux capture-pane -t "$AGENT_SESSION:$AGENT_WINDOW.0" -p | grep -q "GitHub Copilot"; then
       log_info "  Shogun Copilot CLI ready (${waited}s)"
       break
     fi
     sleep 1
+    echo "wait ...."
     ((waited++))
   done
 
@@ -419,10 +417,12 @@ main() {
   launch_copilot_cli 1 "karo"
 
   # TASK-033: Validate startup
-  validate_copilot_startup
+  # validate_copilot_startup
+  sleep 10
 
   # Pre-populate skill commands (without Enter - user confirms on first use)
   pre_populate_skill_command 0 "shogun"
+  sleep 1
   pre_populate_skill_command 1 "karo"
 
   log_info ""
