@@ -1,5 +1,18 @@
 {
-  "words": ["eeuo", "iimuz"],
+  "words": [
+    "apfs",
+    "ashigaru",
+    "cloc",
+    "eeuo",
+    "fswatch",
+    "iimuz",
+    "inotify",
+    "izumi",
+    "mypy",
+    "ntfs",
+    "pkill",
+    "yohey"
+  ],
   "ignoreWords": [],
   "flagWords": [],
   "allowCompoundWords": true,
