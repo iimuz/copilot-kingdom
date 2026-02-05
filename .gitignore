@@ -1,3 +1,11 @@
+multi-agent-sample/
+
+# Multi-worktree system
+worktrees/
+**/queue
+**/shared_context/
+dashboard.md
+
 # Logs
 logs
 *.log
