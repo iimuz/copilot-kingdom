@@ -9,9 +9,6 @@ set -euo pipefail
 # Configuration
 # ============================================================================
 
-# SHOGUN_WORKTREE="$HOME/src/github.com/iimuz/wt-copilot-kingdom-shogun"
-# KARO_WORKTREE="$HOME/src/github.com/iimuz/wt-copilot-kingdom-karo"
-
 # Context paths (fixed at repo root)
 CONTEXT_BASE=".agent/kingdom"
 
@@ -407,7 +404,11 @@ main() {
   ABS_CONTEXT_BASE="${REPO_ROOT}/${CONTEXT_BASE}"
   SHOGUN_WORKTREE="$(shogun_worktree_path)"
   SHOGUN_CONTEXT="${ABS_CONTEXT_BASE}/shogun"
-  ABS_SHOGUN_CONTEXT="$(cd "${SHOGUN_WORKTREE}" && pwd -P)/${CONTEXT_BASE}/shogun"
+  if [[ "${WORKTREE_BASE_OVERRIDE}" == true ]]; then
+    ABS_SHOGUN_CONTEXT="${REPO_ROOT}/${CONTEXT_BASE}/shogun"
+  else
+    ABS_SHOGUN_CONTEXT="${WORKTREE_BASE}/wt-${REPO_NAME}-shogun/${CONTEXT_BASE}/shogun"
+  fi
   SHOGUN_SHARED_CONTEXT="${SHOGUN_CONTEXT}/shared_context"
   SHOGUN_DASHBOARD="${SHOGUN_CONTEXT}/dashboard.md"
 
