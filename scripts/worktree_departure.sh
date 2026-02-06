@@ -403,12 +403,12 @@ main() {
   fi
   ABS_CONTEXT_BASE="${REPO_ROOT}/${CONTEXT_BASE}"
   SHOGUN_WORKTREE="$(shogun_worktree_path)"
-  SHOGUN_CONTEXT="${ABS_CONTEXT_BASE}/shogun"
   if [[ "${WORKTREE_BASE_OVERRIDE}" == true ]]; then
     ABS_SHOGUN_CONTEXT="${REPO_ROOT}/${CONTEXT_BASE}/shogun"
   else
     ABS_SHOGUN_CONTEXT="${WORKTREE_BASE}/wt-${REPO_NAME}-shogun/${CONTEXT_BASE}/shogun"
   fi
+  SHOGUN_CONTEXT="${ABS_SHOGUN_CONTEXT}"
   SHOGUN_SHARED_CONTEXT="${SHOGUN_CONTEXT}/shared_context"
   SHOGUN_DASHBOARD="${SHOGUN_CONTEXT}/dashboard.md"
 
@@ -422,6 +422,25 @@ main() {
   current_branch=$(git branch --show-current)
   log_info "Current branch: ${current_branch}"
 
+  # TASK-002B: Create Shogun worktree (default mode only)
+  if [[ "${WORKTREE_BASE_OVERRIDE}" == false ]]; then
+    local shogun_path
+    shogun_path=$(shogun_worktree_path)
+    local shogun_branch="worktree/shogun"
+    if ! create_worktree "${shogun_path}" "${current_branch}" "${shogun_branch}"; then
+      log_error "Failed to create Shogun worktree"
+      exit 1
+    fi
+  else
+    log_info "Using repo root for Shogun workspace (override mode)"
+  fi
+
+  # TASK-004, TASK-007, TASK-008: Initialize Shogun workspace
+  if ! initialize_shogun_workspace; then
+    log_error "Failed to initialize Shogun workspace"
+    exit 1
+  fi
+
   # TASK-003: Create Karo worktrees
   for ((i = 1; i <= KARO_COUNT; i++)); do
     local karo_path
@@ -432,12 +451,6 @@ main() {
       exit 1
     fi
   done
-
-  # TASK-004, TASK-007, TASK-008: Initialize Shogun workspace
-  if ! initialize_shogun_workspace; then
-    log_error "Failed to initialize Shogun workspace"
-    exit 1
-  fi
 
   # TASK-005: Create symlinks
   for ((i = 1; i <= KARO_COUNT; i++)); do
