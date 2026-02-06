@@ -41,7 +41,7 @@ Monitor for tmux notification message:
 New task available. Check shared_context/shogun_to_karo.yaml and execute.
 ```
 
-Read task from `../wt-<repo>-karo-1/shared_context/shogun_to_karo.yaml` (default sibling layout; adjust if using legacy override):
+Read task from `.agent/kingdom/shared_context/shogun_to_karo.yaml` (symlinked to the Shogun context):
 
 ```yaml
 queue:
@@ -157,12 +157,12 @@ result2 = task agent_type: "task"
 
 ## Dashboard Updates
 
-Write progress to `dashboard.md` located in the default sibling workspace (`../wt-<repo>-karo-1/`). If the legacy override is enabled via `WORKTREE_BASE=./worktrees`, continue updating `worktrees/karo-1/dashboard.md`.
+Write progress to `.agent/kingdom/dashboard.md` (symlinked to the Shogun context).
 
 ### Status: In Progress
 
 ```markdown
-## 🔄 In Progress
+## In Progress
 
 - **cmd_001**: Implementing OAuth2 authentication (Started 14:30)
   - OAuth2 providers: 80% complete (subagent-1)
@@ -174,7 +174,7 @@ Write progress to `dashboard.md` located in the default sibling workspace (`../w
 ### Status: Blocked
 
 ```markdown
-## 🚨 Blocked - Awaiting Shogun Decision
+## Blocked - Awaiting Shogun Decision
 
 - **cmd_001**: OAuth2 authentication
   - Question: Should we use JWT tokens or session cookies?
@@ -186,7 +186,7 @@ Write progress to `dashboard.md` located in the default sibling workspace (`../w
 ### Status: Completed
 
 ```markdown
-## ✅ Completed
+## Completed
 
 - **cmd_001**: OAuth2 authentication (3 hours)
   - Files: `src/auth/oauth.ts`, `src/auth/session.ts`, `src/auth/tokens.ts`
@@ -196,14 +196,12 @@ Write progress to `dashboard.md` located in the default sibling workspace (`../w
 
 ## File Paths
 
-**Working Directory (default):** `../wt-<repo>-karo-1/`
+**Working Directory:** `KARO_PATHS[i]/`
 
-**Communication Files (Shogun owns the queue, Karo writes status):**
+**Communication Files (Shogun owns the context, Karo writes status):**
 
-- `shared_context/shogun_to_karo.yaml` - Read tasks here (Shogun writes, symlinked into Karo's workspace)
-- `dashboard.md` - Write status updates here (symlinked back to Shogun)
-
-**Legacy Override:** When `WORKTREE_BASE=./worktrees` is exported, continue using `./worktrees/karo-1/` with identical responsibilities. This mode is deprecated but retained for compatibility.
+- `.agent/kingdom/shared_context/shogun_to_karo.yaml` - Read tasks here (Shogun writes)
+- `.agent/kingdom/dashboard.md` - Write status updates here
 
 **Note:** Do NOT use tmux send-keys to notify shogun. Shogun monitors dashboard periodically.
 
@@ -270,7 +268,7 @@ Notification: "New task available. Check shared_context/shogun_to_karo.yaml"
    task agent_type: "general-purpose" description: "API integration" prompt: "..."
 
 4. Update dashboard (in progress):
-   ## 🔄 In Progress
+    ## In Progress
    - **cmd_002**: User profile page
      - UI layout: Complete
      - Avatar upload: Complete
@@ -281,7 +279,7 @@ Notification: "New task available. Check shared_context/shogun_to_karo.yaml"
    task agent_type: "task" description: "Run tests" prompt: "npm test src/profile"
 
 6. Update dashboard (completed):
-   ## ✅ Completed
+    ## Completed
    - **cmd_002**: User profile page (2 hours)
      - Files: `src/pages/profile.tsx`, `src/api/profile.ts`
      - Tests: All passing (8 tests)
@@ -290,7 +288,7 @@ Notification: "New task available. Check shared_context/shogun_to_karo.yaml"
 ## Important Rules
 
 - **Use Subagents**: Leverage `task` tool for heavy work to parallelize and isolate execution.
-- **Path Reference**: Always use `shared_context/` for communication files (not `queue/`).
+- **Path Reference**: Always use `.agent/kingdom/shared_context/` for communication files.
 - **Communication**: Update `dashboard.md` to communicate status. Do NOT send tmux keys.
 - **Timestamp**: Always use `date +"%Y-%m-%dT%H:%M:%S"` for timestamps in YAML files.
 - **Stateless Subagents**: Each subagent is independent - provide complete context in prompts.

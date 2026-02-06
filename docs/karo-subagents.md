@@ -266,14 +266,14 @@ Update dashboard with aggregated view.
 
 ### Anti-Pattern 1: Subagent for Simple Tasks
 
-❌ **Bad**:
+**Bad**:
 
 ```
 Task: "Count files in src/"
 Karo: Launch subagent to run `find src/ -type f | wc -l`
 ```
 
-✅ **Good**:
+**Good**:
 
 ```
 Task: "Count files in src/"
@@ -284,14 +284,14 @@ Karo: Execute directly with bash tool
 
 ### Anti-Pattern 2: Too Many Parallel Subagents
 
-❌ **Bad**:
+**Bad**:
 
 ```
 Task: Process 100 files
 Karo: Launch 100 parallel subagents (one per file)
 ```
 
-✅ **Good**:
+**Good**:
 
 ```
 Task: Process 100 files
@@ -302,14 +302,14 @@ Karo: Launch 5 subagents, each processing 20 files
 
 ### Anti-Pattern 3: Nested Subagents
 
-❌ **Bad**:
+**Bad**:
 
 ```
 Karo launches subagent A
 Subagent A launches subagent B (using task tool)
 ```
 
-✅ **Good**:
+**Good**:
 
 ```
 Karo plans full workflow and launches all needed subagents
@@ -319,7 +319,7 @@ Karo plans full workflow and launches all needed subagents
 
 ### Anti-Pattern 4: Ignoring Subagent Results
 
-❌ **Bad**:
+**Bad**:
 
 ```
 Launch subagent A
@@ -327,7 +327,7 @@ Don't check result
 Assume success and proceed
 ```
 
-✅ **Good**:
+**Good**:
 
 ```
 Launch subagent A
@@ -342,9 +342,9 @@ Report outcome to Shogun
 
 ### 1. Clear Subagent Prompts
 
-❌ **Vague**: "Fix the code"
+**Vague**: "Fix the code"
 
-✅ **Clear**: "Fix TypeScript compilation errors in src/components/Button.tsx. Preserve existing functionality and add type annotations where missing."
+**Clear**: "Fix TypeScript compilation errors in src/components/Button.tsx. Preserve existing functionality and add type annotations where missing."
 
 ### 2. Appropriate Agent Type Selection
 
@@ -472,8 +472,8 @@ Update dashboard at key milestones:
 ### Checking Subagent Output
 
 ```bash
-# View subagent execution logs
-cat worktrees/karo-1/subagent-*.log
+# Karo worktree logs
+cat /path/to/karo-1/subagent-*.log
 
 # Monitor active subagents
 ps aux | grep copilot | grep task
@@ -485,6 +485,7 @@ ps aux | grep copilot | grep task
 2. **Subagent fails silently**: Check error handling in prompt
 3. **Subagent produces wrong result**: Refine prompt clarity
 4. **Too slow**: Use faster agent type (explore vs general-purpose)
+5. **Path confusion**: Logs live in the configured `KARO_PATHS` directories; verify the path matches your configuration.
 
 ## Summary
 

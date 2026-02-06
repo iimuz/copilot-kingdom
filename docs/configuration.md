@@ -6,38 +6,44 @@ Advanced configuration options for the multi-worktree agent system.
 
 ### Worktree Paths
 
-Control where worktrees are created:
+Configuration requires explicit paths:
+
+- `SHOGUN_PATH`: existing directory for the Shogun workspace
+- `KARO_PATHS`: bash array of Karo worktree paths
+- `KARO_COUNT`: optional cap (defaults to all `KARO_PATHS` entries)
+- `WORKTREE_CONFIG_FILE`: optional config file sourced before validation
 
 ```bash
-# Default locations (if not set)
-WORKTREE_BASE="./worktrees"
-SHOGUN_WORKTREE="${WORKTREE_BASE}/shogun"
-KARO_WORKTREE="${WORKTREE_BASE}/karo-1"
-```
+export SHOGUN_PATH="/path/to/shogun"
+export KARO_PATHS=("/path/to/karo-1" "/path/to/karo-2")
+export KARO_COUNT=1
+export WORKTREE_CONFIG_FILE="/path/to/worktree-config.sh" # optional
 
-#### Custom Base Directory
-
-```bash
-# Use /tmp for ephemeral workspaces
-export WORKTREE_BASE="/tmp/copilot-agents"
+./scripts/worktree_departure.sh --check
 ./scripts/worktree_departure.sh
 ```
 
-#### Individual Worktree Paths
+#### External Config Precedence
 
-```bash
-# Place worktrees in different locations
-export SHOGUN_WORKTREE="/data/agents/shogun"
-export KARO_WORKTREE="/data/agents/karo"
-./scripts/worktree_departure.sh
-```
+If `WORKTREE_CONFIG_FILE` is set, it is sourced after the inline defaults. Values in the file override inline configuration.
+
+#### Migration from Legacy Base Configuration (Deprecated)
+
+If `SHOGUN_PATH` and `KARO_PATHS` are unset, the script will map legacy base settings for backward compatibility:
+
+| Legacy Input        | New Mapping                                                                               |
+| ------------------- | ----------------------------------------------------------------------------------------- |
+| Base unset          | `SHOGUN_PATH="<parent>/wt-<repo>-shogun"`, `KARO_PATHS=("<parent>/wt-<repo>-karo-1" ...)` |
+| Base set to `/path` | `SHOGUN_PATH="<repo root>"`, `KARO_PATHS=("/path/karo-1" ...)`                            |
+
+This compatibility shim is temporary and will be removed after **2026-06-01**. Migrate to explicit `SHOGUN_PATH` and `KARO_PATHS` as soon as possible.
 
 #### Absolute vs Relative Paths
 
 - **Absolute paths** (recommended): `/home/user/agents/shogun`
   - Work reliably across shells and contexts
   - Symlinks remain valid regardless of current directory
-- **Relative paths**: `./worktrees/shogun`
+- **Relative paths**: `../wt-{repo}-shogun`
   - Relative to repository root
   - May break if scripts are run from different directories
 
@@ -273,9 +279,8 @@ Default: Both worktrees use the current branch
 To use different branches:
 
 ```bash
-# Modify create_worktrees() in departure script
-git worktree add "${SHOGUN_WORKTREE}" main
-git worktree add "${KARO_WORKTREE}" development
+# Modify create_worktree() in departure script
+git -C "${SHOGUN_PATH}" worktree add "/path/to/karo-1" main
 ```
 
 ### Gitignore Patterns
@@ -299,13 +304,11 @@ Add to `.gitignore` to exclude worktree artifacts:
 
 ### Multiple Karo Instances
 
-To scale to multiple Karo agents (future enhancement):
+To scale to multiple Karo agents, provide multiple paths and optionally cap with `KARO_COUNT`:
 
 ```bash
-export KARO_COUNT=3
-# Script would create: karo-1, karo-2, karo-3
-# Each with separate shared_context and dashboard
-# Shogun would need load balancing logic
+export KARO_PATHS=("/path/to/karo-1" "/path/to/karo-2" "/path/to/karo-3")
+export KARO_COUNT=2
 ```
 
 ### Custom Notification System
@@ -322,7 +325,7 @@ Example with fswatch:
 
 ```bash
 # In Karo pane, watch for file changes
-fswatch -o worktrees/karo-1/shared_context/shogun_to_karo.yaml | \
+fswatch -o /path/to/karo-1/.agent/kingdom/shared_context/shogun_to_karo.yaml | \
   xargs -n1 -I{} echo "New task detected"
 ```
 
@@ -344,13 +347,12 @@ Ensure worktree directories don't expose sensitive data:
 
 ```bash
 # Add to .gitignore
-worktrees/*/secrets/
-worktrees/*/.env
-worktrees/*/.credentials
+**/.agent/kingdom/shared_context/
+**/.agent/kingdom/dashboard.md
 
 # Set restrictive permissions
-chmod 700 worktrees/shogun
-chmod 700 worktrees/karo-1
+chmod 700 "$SHOGUN_PATH"
+chmod 700 "/path/to/karo-1"
 ```
 
 ### Sandboxing
@@ -359,7 +361,8 @@ For untrusted task execution:
 
 ```bash
 # Run worktrees in restricted directories
-export WORKTREE_BASE="/tmp/sandboxed"
+export SHOGUN_PATH="/tmp/sandboxed/shogun"
+export KARO_PATHS=("/tmp/sandboxed/karo-1")
 # Use filesystem permissions to limit access
 mkdir -p /tmp/sandboxed
 chmod 755 /tmp/sandboxed
@@ -410,9 +413,8 @@ ulimit -n 1024     # Max 1024 open files
 #!/usr/bin/env bash
 # production-config.sh
 
-export WORKTREE_BASE="/opt/copilot-agents"
-export SHOGUN_WORKTREE="/opt/copilot-agents/shogun"
-export KARO_WORKTREE="/opt/copilot-agents/karo-1"
+export SHOGUN_PATH="/opt/copilot-agents/shogun"
+export KARO_PATHS=("/opt/copilot-agents/karo-1")
 
 # Security
 umask 077
@@ -430,7 +432,8 @@ ulimit -n 4096
 #!/usr/bin/env bash
 # dev-config.sh
 
-export WORKTREE_BASE="./dev-worktrees"
+export SHOGUN_PATH="./dev-worktrees/shogun"
+export KARO_PATHS=("./dev-worktrees/karo-1")
 
 # Use verbose logging
 set -x
@@ -445,14 +448,15 @@ set -x
 #!/usr/bin/env bash
 # ci-config.sh
 
-export WORKTREE_BASE="/tmp/ci-agents-$BUILD_ID"
+export SHOGUN_PATH="/tmp/ci-agents-$BUILD_ID/shogun"
+export KARO_PATHS=("/tmp/ci-agents-$BUILD_ID/karo-1")
 export AGENT_SESSION="ci-$BUILD_ID"
 
 # Non-interactive mode
 export COPILOT_NON_INTERACTIVE=1
 
 # Cleanup on exit
-trap 'git worktree remove --force $SHOGUN_WORKTREE; git worktree remove --force $KARO_WORKTREE' EXIT
+trap 'git -C "$SHOGUN_PATH" worktree remove --force "${KARO_PATHS[0]}"' EXIT
 
 # Launch
 ./scripts/worktree_departure.sh
@@ -460,32 +464,17 @@ trap 'git worktree remove --force $SHOGUN_WORKTREE; git worktree remove --force 
 
 ## Configuration File Support
 
-Future enhancement: Support for configuration file (e.g., `.copilot-kingdom.yaml`):
+Provide a shell config file and point `WORKTREE_CONFIG_FILE` at it:
 
-```yaml
-# .copilot-kingdom.yaml (proposed)
-worktrees:
-  base: './worktrees'
-  shogun:
-    path: 'shogun'
-    branch: 'main'
-    model: 'claude-sonnet-4.5'
-  karo:
-    path: 'karo-1'
-    branch: 'main'
-    model: 'claude-haiku-4.5'
-
-tmux:
-  session: 'multi'
-  layout: 'horizontal'
-
-communication:
-  format: 'yaml'
-  notification: 'tmux'
-
-dashboard:
-  enabled: true
-  update_interval: 10
+```bash
+# worktree-config.sh
+SHOGUN_PATH="/opt/copilot-agents/shogun"
+KARO_PATHS=("/opt/copilot-agents/karo-1" "/opt/copilot-agents/karo-2")
+KARO_COUNT=1
 ```
 
-This would be loaded by the departure script to configure all aspects of the system.
+```bash
+export WORKTREE_CONFIG_FILE="/path/to/worktree-config.sh"
+./scripts/worktree_departure.sh --check
+./scripts/worktree_departure.sh
+```

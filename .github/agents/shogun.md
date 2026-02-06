@@ -19,13 +19,13 @@ User Request Received
   ├─→ Analyze Complexity
   │     ├─→ Simple? (Single file, <10 lines, <5 min)
   │     │     └─→ Execute Directly
-  │     │           ├─→ Perform work in current workspace (./worktrees/shogun/)
+  │     │           ├─→ Perform work in current workspace (SHOGUN_PATH/)
   │     │           ├─→ Update dashboard.md
   │     │           └─→ Report completion to user
   │     │
   │     └─→ Complex? (Multi-file, decomposable, >30 min)
   │           └─→ Delegate to Karo
-  │                 ├─→ Write task to queue/shogun_to_karo.yaml
+  │                 ├─→ Write task to .agent/kingdom/shogun/shared_context/shogun_to_karo.yaml
   │                 ├─→ Call send-to-karo skill
   │                 └─→ Monitor dashboard.md for progress
 ```
@@ -48,7 +48,7 @@ User: "Update README with new installation instructions"
 Actions:
 1. Edit README.md in current workspace
 2. Update dashboard.md:
-   ## ✅ Completed
+   ## Completed
    - README updated with installation instructions
 3. Report completion to user
 ```
@@ -69,7 +69,7 @@ Delegate tasks when criteria met:
 User: "Implement OAuth2 authentication system"
 
 Actions:
-1. Create task specification in queue/shogun_to_karo.yaml:
+1. Create task specification in .agent/kingdom/shogun/shared_context/shogun_to_karo.yaml:
    queue:
      - id: cmd_001
        timestamp: "2026-02-05T14:30:00"
@@ -89,7 +89,7 @@ Actions:
 
 ### Writing Tasks to Queue
 
-Create or append to `../wt-<repo>-shogun/queue/shogun_to_karo.yaml` (symlinked to karo's `shared_context/` by default):
+Create or append to `.agent/kingdom/shogun/shared_context/shogun_to_karo.yaml`:
 
 ```yaml
 queue:
@@ -111,7 +111,7 @@ date "+%Y-%m-%dT%H:%M:%S"
 
 ### Notifying Karo
 
-After writing to the queue (owned by shogun's sibling worktree), invoke the notification skill:
+After writing to shared_context, invoke the notification skill (requires `AGENT_SESSION` and `AGENT_PANE_KARO` from the tmux session):
 
 ```
 skill send-to-karo
@@ -121,7 +121,7 @@ This sends a tmux notification to karo's pane to check `shared_context/shogun_to
 
 ### Monitoring Progress
 
-Read `dashboard.md` (owned by shogun's sibling worktree, symlinked to Karo's dashboard) to see:
+Read `.agent/kingdom/shogun/dashboard.md` to see:
 
 - Task status (pending, in progress, completed, blocked)
 - Subtask breakdown
@@ -137,19 +137,19 @@ Read `dashboard.md` (owned by shogun's sibling worktree, symlinked to Karo's das
 
 ## File Paths
 
-**Working Directory (default):** `../wt-<repo>-shogun/`
+**Working Directory:** `SHOGUN_PATH/`
 
 **Communication Files (Shogun-owned context directory):**
 
-- `queue/shogun_to_karo.yaml` - Write tasks here (symlink points to Karo's `shared_context/`)
-- `dashboard.md` - Read status here (symlink points to Karo's dashboard)
-
-**Legacy Override:** If `WORKTREE_BASE=./worktrees` is explicitly exported before running the setup script, the working directory reverts to `./worktrees/shogun`. This behavior is deprecated but supported for backward compatibility.
+- `.agent/kingdom/shogun/shared_context/shogun_to_karo.yaml` - Write tasks here
+- `.agent/kingdom/shogun/dashboard.md` - Read status here
 
 **Environment Variables:**
 
 - `AGENT_SESSION` - tmux session name (for send-to-karo skill)
 - `AGENT_PANE_KARO` - Karo's pane number (for send-to-karo skill)
+
+Set these variables manually based on the script output before invoking `skill send-to-karo`.
 
 ## Hybrid Workflow Example
 
@@ -164,7 +164,7 @@ Analysis:
 
 Actions:
 1. Immediately update README.md
-2. Write rate limiting task to queue/shogun_to_karo.yaml
+2. Write rate limiting task to .agent/kingdom/shogun/shared_context/shogun_to_karo.yaml
 3. Invoke send-to-karo skill
 4. Continue monitoring dashboard while README work is done
 
@@ -193,7 +193,7 @@ Result: Simple work completes immediately, complex work proceeds in parallel
 
 ### If Karo Doesn't Respond
 
-1. Verify queue file written correctly: `cat queue/shogun_to_karo.yaml`
+1. Verify task file written correctly: `cat .agent/kingdom/shogun/shared_context/shogun_to_karo.yaml`
 2. Check dashboard for status
 3. Verify karo's tmux pane is active: `tmux list-panes`
 4. Retry notification: `skill send-to-karo`

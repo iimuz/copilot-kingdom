@@ -15,19 +15,16 @@ User
   │
   ▼ Command
 ┌─────────────────────┐
-│  SHOGUN (Pane 0)   │ ← Strategic agent: planning + execution + delegation
-│ ../wt-{repo}-shogun │   Works directly on simple tasks
-│  ├─ queue/ ────────┼─→ Symlink to Karo's shared_context/
-│  └─ dashboard.md ──┼─→ Symlink to Karo's dashboard.md
+│  SHOGUN (manual)   │ ← Strategic agent: planning + execution + delegation
+│  SHOGUN_PATH        │   Workspace must already exist
+│  └ .agent/kingdom   │   Shared context + dashboard (source of truth)
 └──────────┬──────────┘
-           │ YAML communication
+           │ symlink
            ▼
 ┌─────────────────────┐
-│  KARO (Pane 1)     │ ← Orchestrator: task distribution via subagents
-│ ../wt-{repo}-karo-1 │   Uses task tool for on-demand workers
-│  ├─ shared_context/ │   (Real directory, symlink target)
-│  │  └─ shogun_to_karo.yaml
-│  └─ dashboard.md    │   (Real file, owned by Karo)
+│  KARO panes         │ ← Orchestrator: task distribution via subagents
+│  KARO_PATHS[i]      │   Uses task tool for on-demand workers
+│  └ .agent/kingdom/  │   Symlink to Shogun context
 └──────────┬──────────┘
            │ task tool
            ▼
@@ -80,16 +77,25 @@ gh auth status
 ### Starting the System
 
 ```bash
+export SHOGUN_PATH="/path/to/shogun"
+export KARO_PATHS=("/path/to/karo-1" "/path/to/karo-2")
+# Optional cap (defaults to all KARO_PATHS entries)
+export KARO_COUNT=1
+
+# Validate configuration without side effects
+./scripts/worktree_departure.sh --check
+
 ./scripts/worktree_departure.sh
 ```
 
 This script will:
 
-1. Create git worktrees for Shogun and Karo as sibling worktrees (`../wt-{repo}-shogun`, `../wt-{repo}-karo-1`)
-2. Set up symlinks from Shogun to Karo's shared context
-3. Initialize communication files (YAML, dashboard)
-4. Launch a tmux session with 2 panes
-5. Start Copilot CLI instances in each pane
+1. Validate `SHOGUN_PATH` and `KARO_PATHS` (use `--check` for dry-run validation)
+2. Initialize Shogun workspace context in `SHOGUN_PATH`
+3. Create or reuse Karo worktrees for each active path
+4. Symlink `.agent/kingdom` in each Karo worktree to the Shogun context
+5. Launch a tmux session with Karo panes only
+6. Start Copilot CLI instances in each Karo pane
 
 ### Connecting to the Session
 
@@ -103,7 +109,7 @@ If you started from within tmux, switch to the new window created.
 
 ### Interacting with Agents
 
-Pane 0 (Shogun) is your primary interface. Give commands such as:
+Start a Shogun session manually from `SHOGUN_PATH` and give commands such as:
 
 ```
 Analyze the codebase structure and create a dependency diagram
@@ -114,7 +120,7 @@ Shogun will decide whether to:
 - Execute directly (simple tasks)
 - Delegate to Karo (complex/parallel tasks)
 
-Pane 1 (Karo) monitors for delegated tasks and uses subagents to execute them.
+Karo panes monitor for delegated tasks and use subagents to execute them.
 
 ### Stopping the System
 
@@ -128,32 +134,24 @@ tmux kill-session -t multi
 3. Clean up worktrees (optional):
 
 ```bash
-git worktree remove ../wt-{repo}-shogun --force
-git worktree remove ../wt-{repo}-karo-1 --force
-git worktree prune
-
-# Legacy compatibility (WORKTREE_BASE=./worktrees)
-git worktree remove ./worktrees/karo-1 --force
-git worktree remove ./worktrees/shogun --force
+git worktree remove /path/to/karo-1 --force
+git worktree remove /path/to/karo-2 --force
 git worktree prune
 ```
 
 ## Configuration
 
-### Custom Worktree Paths
+### Configuration Paths
 
-Default worktrees are created as siblings of the repository (`../wt-{repo}-shogun`, `../wt-{repo}-karo-1`). Set `WORKTREE_BASE` to keep the legacy `./worktrees` layout.
-
-Set environment variables before running the departure script:
+Set `SHOGUN_PATH` and `KARO_PATHS` before running the departure script. `KARO_COUNT` is an optional cap; `WORKTREE_CONFIG_FILE` can source a shared config file.
 
 ```bash
-# Use different base directory
-export WORKTREE_BASE="/tmp/agents"
-./scripts/worktree_departure.sh
+export SHOGUN_PATH="/path/to/shogun"
+export KARO_PATHS=("/path/to/karo-1" "/path/to/karo-2")
+export KARO_COUNT=1
+export WORKTREE_CONFIG_FILE="/path/to/worktree-config.sh" # optional
 
-# Or specify individual paths
-export SHOGUN_WORKTREE="/path/to/shogun"
-export KARO_WORKTREE="/path/to/karo"
+./scripts/worktree_departure.sh --check
 ./scripts/worktree_departure.sh
 ```
 
@@ -223,27 +221,27 @@ copilot-kingdom/
 │   └── worktree_departure.sh     # System startup script
 └── multi-agent-sample/           # Original reference implementation
 
-Sibling worktrees (default):
-../wt-{repo}-shogun/              # Shogun's workspace
-├── queue/ → ../wt-{repo}-karo-1/shared_context/
-└── dashboard.md → ../wt-{repo}-karo-1/dashboard.md
-../wt-{repo}-karo-1/              # Karo's workspace
-├── shared_context/               # Real directory
-│   └── shogun_to_karo.yaml
-└── dashboard.md                  # Real file
+Configured workspaces:
+SHOGUN_PATH/                      # Shogun's workspace
+└── .agent/kingdom/shogun/
+    ├── shared_context/
+    │   └── shogun_to_karo.yaml
+    └── dashboard.md
+KARO_PATHS[i]/                    # Karo worktree(s)
+└── .agent/kingdom → SHOGUN_PATH/.agent/kingdom/shogun
 ```
 
 ## Communication Flow
 
-1. **Shogun receives user request** in `../wt-{repo}-shogun/`
+1. **Shogun receives user request** in `SHOGUN_PATH/`
 2. **Shogun decides**:
    - Simple task → Execute directly
-   - Complex task → Write to `queue/shogun_to_karo.yaml` (via symlink)
-3. **Karo detects new task** by monitoring `shared_context/shogun_to_karo.yaml`
+   - Complex task → Write to `.agent/kingdom/shogun/shared_context/shogun_to_karo.yaml`
+3. **Karo detects new task** by monitoring `.agent/kingdom/shared_context/shogun_to_karo.yaml`
 4. **Karo creates subagents** using the task tool
 5. **Subagents execute** and return results to Karo
-6. **Karo updates dashboard.md** with progress/results
-7. **Shogun reads dashboard** (via symlink) to see status
+6. **Karo updates dashboard.md** via `.agent/kingdom/dashboard.md`
+7. **Shogun reads dashboard** in `.agent/kingdom/shogun/dashboard.md`
 
 ## Documentation
 
