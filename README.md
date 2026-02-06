@@ -2,6 +2,8 @@
 
 Multi-agent system using GitHub Copilot CLI with git worktree isolation for parallel task execution.
 
+[yohey-w/multi-agent-shogun](https://github.com/yohey-w/multi-agent-shogun) を元に複数 worktree での協調利用の実験用に作成。
+
 ## Overview
 
 Copilot Kingdom is a multi-agent architecture that enables GitHub Copilot CLI instances to work collaboratively on complex tasks. Unlike traditional single-agent approaches, this system uses git worktrees to provide workspace isolation while maintaining shared communication through symlinks.
