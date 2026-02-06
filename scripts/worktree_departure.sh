@@ -16,11 +16,16 @@ set -euo pipefail
 CONTEXT_BASE=".agent/kingdom"
 
 # Worktree paths (configurable via environment variables)
-WORKTREE_BASE="${WORKTREE_BASE:-./worktrees}"
+WORKTREE_BASE_OVERRIDE=false
+if [[ -n "${WORKTREE_BASE+x}" ]]; then
+  WORKTREE_BASE_OVERRIDE=true
+fi
+WORKTREE_BASE="${WORKTREE_BASE:-}"
 KARO_COUNT="${KARO_COUNT:-1}"
 
 # Derived paths (initialized after repo root detection)
 REPO_ROOT=""
+REPO_NAME=""
 ABS_CONTEXT_BASE=""
 ABS_SHOGUN_CONTEXT=""
 SHOGUN_WORKTREE=""
@@ -48,6 +53,30 @@ log_warn() {
 
 log_error() {
   echo -e "${RED}[ERROR]${NC} $*" >&2
+}
+
+# ============================================================================
+# Worktree Path Functions
+# ============================================================================
+
+karo_worktree_path() {
+  local index="$1"
+
+  if [[ "${WORKTREE_BASE_OVERRIDE}" == true ]]; then
+    echo "${WORKTREE_BASE}/karo-${index}"
+    return 0
+  fi
+
+  echo "${WORKTREE_BASE}/wt-${REPO_NAME}-karo-${index}"
+}
+
+shogun_worktree_path() {
+  if [[ "${WORKTREE_BASE_OVERRIDE}" == true ]]; then
+    echo "${REPO_ROOT}"
+    return 0
+  fi
+
+  echo "${WORKTREE_BASE}/wt-${REPO_NAME}-shogun"
 }
 
 # ============================================================================
@@ -95,7 +124,8 @@ validate_all_symlinks() {
   local all_valid=true
 
   for ((i = 1; i <= KARO_COUNT; i++)); do
-    local karo_worktree="${WORKTREE_BASE}/karo-${i}"
+    local karo_worktree
+    karo_worktree=$(karo_worktree_path "${i}")
     local karo_symlink="${karo_worktree}/.agent/kingdom"
     if ! validate_symlink "${karo_symlink}" "${ABS_SHOGUN_CONTEXT}"; then
       all_valid=false
@@ -368,8 +398,14 @@ main() {
   fi
 
   REPO_ROOT=$(git rev-parse --show-toplevel)
+  REPO_NAME=$(basename "${REPO_ROOT}")
+  if [[ "${WORKTREE_BASE_OVERRIDE}" == true ]]; then
+    WORKTREE_BASE="${WORKTREE_BASE}"
+  else
+    WORKTREE_BASE="$(cd "${REPO_ROOT}/.." && pwd -P)"
+  fi
   ABS_CONTEXT_BASE="${REPO_ROOT}/${CONTEXT_BASE}"
-  SHOGUN_WORKTREE="${REPO_ROOT}"
+  SHOGUN_WORKTREE="$(shogun_worktree_path)"
   SHOGUN_CONTEXT="${ABS_CONTEXT_BASE}/shogun"
   ABS_SHOGUN_CONTEXT="$(cd "${SHOGUN_WORKTREE}" && pwd -P)/${CONTEXT_BASE}/shogun"
   SHOGUN_SHARED_CONTEXT="${SHOGUN_CONTEXT}/shared_context"
@@ -387,7 +423,8 @@ main() {
 
   # TASK-003: Create Karo worktrees
   for ((i = 1; i <= KARO_COUNT; i++)); do
-    local karo_path="${WORKTREE_BASE}/karo-${i}"
+    local karo_path
+    karo_path=$(karo_worktree_path "${i}")
     local karo_branch="worktree/karo-${i}"
     if ! create_worktree "${karo_path}" "${current_branch}" "${karo_branch}"; then
       log_error "Failed to create Karo worktree"
@@ -403,7 +440,8 @@ main() {
 
   # TASK-005: Create symlinks
   for ((i = 1; i <= KARO_COUNT; i++)); do
-    local karo_path="${WORKTREE_BASE}/karo-${i}"
+    local karo_path
+    karo_path=$(karo_worktree_path "${i}")
     if ! create_symlinks "${karo_path}"; then
       log_error "Failed to create symlinks"
       exit 1
@@ -437,7 +475,8 @@ main() {
   # TASK-028, TASK-030: Configure Karo panes
   for ((i = 1; i <= KARO_COUNT; i++)); do
     local pane_index=$i
-    local karo_path="${WORKTREE_BASE}/karo-${i}"
+    local karo_path
+    karo_path=$(karo_worktree_path "${i}")
     configure_pane_environment "${pane_index}" "karo-${i}" "${karo_path}" "AGENT_PANE_SHOGUN=0"
   done
 
@@ -460,12 +499,12 @@ main() {
   log_info "Workspace structure:"
   log_info "  Shogun: ${SHOGUN_WORKTREE}"
   for ((i = 1; i <= KARO_COUNT; i++)); do
-    log_info "  Karo-${i}:   ${WORKTREE_BASE}/karo-${i}"
+    log_info "  Karo-${i}:   $(karo_worktree_path "${i}")"
   done
   log_info ""
   log_info "Symlinks:"
   for ((i = 1; i <= KARO_COUNT; i++)); do
-    log_info "  ${WORKTREE_BASE}/karo-${i}/.agent/kingdom → ${SHOGUN_CONTEXT}"
+    log_info "  $(karo_worktree_path "${i}")/.agent/kingdom → ${SHOGUN_CONTEXT}"
   done
   log_info ""
   log_info "Tmux session:"
