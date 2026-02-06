@@ -1,4 +1,5 @@
 [tools]
+"github:steveyegge/beads" = "latest"
 nodejs = "24"
 pnpm = "latest"
 shellcheck = "latest"

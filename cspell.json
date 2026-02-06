@@ -11,6 +11,7 @@
     "mypy",
     "ntfs",
     "pkill",
+    "steveyegge",
     "yohey"
   ],
   "ignoreWords": [],
