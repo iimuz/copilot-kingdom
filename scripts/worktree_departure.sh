@@ -32,6 +32,7 @@ DRY_RUN=false
 EFFECTIVE_KARO_COUNT=0
 
 # Derived paths (initialized after resolution)
+ABS_KINGDOM_PATH=""
 ABS_SHOGUN_PATH=""
 ABS_SHOGUN_CONTEXT=""
 SHOGUN_SHARED_CONTEXT=""
@@ -220,6 +221,19 @@ resolve_path() {
 }
 
 resolve_paths() {
+  # Resolve copilot-kingdom path from this script's real location
+  # Follow symlinks so the path is correct even if the script is invoked via symlink
+  local real_source="${BASH_SOURCE[0]}"
+  while [[ -L "${real_source}" ]]; do
+    local link_dir
+    link_dir=$(cd "$(dirname "${real_source}")" && pwd -P)
+    real_source=$(readlink "${real_source}")
+    [[ "${real_source}" != /* ]] && real_source="${link_dir}/${real_source}"
+  done
+  local script_dir
+  script_dir=$(cd "$(dirname "${real_source}")" && pwd -P)
+  ABS_KINGDOM_PATH=$(cd "${script_dir}/.." && pwd -P)
+
   local resolved_shogun
   if ! resolved_shogun=$(resolve_path "${SHOGUN_PATH}"); then
     log_error "Unable to resolve SHOGUN_PATH: ${SHOGUN_PATH}"
@@ -359,6 +373,8 @@ log_planned_actions() {
   log_info "Dry-run enabled. No changes will be made."
   log_info "Planned actions:"
   log_info "  Initialize Shogun workspace: ${ABS_SHOGUN_CONTEXT}"
+  log_info "  Create agent symlink: ${ABS_SHOGUN_PATH}/.github/agents/shogun.md → ${ABS_KINGDOM_PATH}/.github/agents/shogun.md"
+  log_info "  Create skill symlink: ${ABS_SHOGUN_PATH}/.github/skills/send-to-karo → ${ABS_KINGDOM_PATH}/.github/skills/send-to-karo"
 
   local worktree_list
   worktree_list=$(git -C "${ABS_SHOGUN_PATH}" worktree list)
@@ -374,6 +390,8 @@ log_planned_actions() {
     fi
     log_info "  Create symlink: ${karo_path}/.agent/kingdom/shogun → ${ABS_SHOGUN_CONTEXT}"
     log_info "  Create symlink: ${karo_path}/.agent/kingdom/karo → ${KARO_CONTEXT_PATHS[$((index - 1))]}"
+    log_info "  Create agent symlink: ${karo_path}/.github/agents/karo.md → ${ABS_KINGDOM_PATH}/.github/agents/karo.md"
+    log_info "  Create skill symlink: ${karo_path}/.github/skills/send-to-karo → ${ABS_KINGDOM_PATH}/.github/skills/send-to-karo"
   done
 
   log_info "  Create tmux session with ${EFFECTIVE_KARO_COUNT} Karo pane(s)"
@@ -419,6 +437,49 @@ validate_symlink() {
   return 0
 }
 
+validate_file_symlink() {
+  local symlink_path="$1"
+  local expected_target="$2"
+
+  if [[ ! -L "${symlink_path}" ]]; then
+    log_error "Symlink does not exist: ${symlink_path}"
+    return 1
+  fi
+
+  if [[ ! -e "${symlink_path}" ]]; then
+    log_error "Symlink is broken: ${symlink_path}"
+    return 1
+  fi
+
+  local actual_target
+  actual_target=$(readlink "${symlink_path}")
+
+  # Resolve to absolute path so relative symlinks compare correctly
+  local resolved_target
+  local symlink_dir
+  symlink_dir=$(cd "$(dirname "${symlink_path}")" && pwd -P)
+  if [[ "${actual_target}" == /* ]]; then
+    resolved_target="${actual_target}"
+  else
+    resolved_target="${symlink_dir}/${actual_target}"
+  fi
+
+  local normalized_expected="${expected_target}"
+  if [[ "${expected_target}" != /* ]]; then
+    normalized_expected="$(cd "$(dirname "${expected_target}")" && pwd -P)/$(basename "${expected_target}")"
+  fi
+
+  if [[ "${resolved_target}" != "${normalized_expected}" ]]; then
+    log_error "File symlink target mismatch: ${symlink_path}"
+    log_error "  Expected: ${normalized_expected}"
+    log_error "  Found: ${actual_target} (resolved: ${resolved_target})"
+    return 1
+  fi
+
+  log_info "Symlink valid: ${symlink_path} → ${normalized_expected}"
+  return 0
+}
+
 validate_all_symlinks() {
   log_info "Validating symlinks..."
 
@@ -435,6 +496,36 @@ validate_all_symlinks() {
 
     local karo_symlink="${karo_path}/.agent/kingdom/karo"
     if ! validate_symlink "${karo_symlink}" "${KARO_CONTEXT_PATHS[$((index - 1))]}"; then
+      all_valid=false
+    fi
+  done
+
+  # Validate agent file symlinks
+  local shogun_agent_symlink="${ABS_SHOGUN_PATH}/.github/agents/shogun.md"
+  local shogun_agent_source="${ABS_KINGDOM_PATH}/.github/agents/shogun.md"
+  if ! validate_file_symlink "${shogun_agent_symlink}" "${shogun_agent_source}"; then
+    all_valid=false
+  fi
+
+  # Validate skill directory symlinks
+  local shogun_skill_symlink="${ABS_SHOGUN_PATH}/.github/skills/send-to-karo"
+  local shogun_skill_source="${ABS_KINGDOM_PATH}/.github/skills/send-to-karo"
+  if ! validate_symlink "${shogun_skill_symlink}" "${shogun_skill_source}"; then
+    all_valid=false
+  fi
+
+  index=0
+  for karo_path in "${ACTIVE_KARO_PATHS[@]}"; do
+    index=$((index + 1))
+    local karo_agent_symlink="${karo_path}/.github/agents/karo.md"
+    local karo_agent_source="${ABS_KINGDOM_PATH}/.github/agents/karo.md"
+    if ! validate_file_symlink "${karo_agent_symlink}" "${karo_agent_source}"; then
+      all_valid=false
+    fi
+
+    local karo_skill_symlink="${karo_path}/.github/skills/send-to-karo"
+    local karo_skill_source="${ABS_KINGDOM_PATH}/.github/skills/send-to-karo"
+    if ! validate_symlink "${karo_skill_symlink}" "${karo_skill_source}"; then
       all_valid=false
     fi
   done
@@ -550,6 +641,18 @@ EOF
     log_info "Initialized dashboard: ${SHOGUN_DASHBOARD}"
   else
     log_warn "Dashboard already exists: ${SHOGUN_DASHBOARD}"
+  fi
+
+  # Create agent file symlink for Shogun
+  if ! create_agent_symlinks "${ABS_SHOGUN_PATH}" "shogun"; then
+    log_error "Failed to create Shogun agent symlink"
+    return 1
+  fi
+
+  # Create skill directory symlink for Shogun
+  if ! create_skill_symlinks "${ABS_SHOGUN_PATH}" "send-to-karo"; then
+    log_error "Failed to create Shogun skill symlink"
+    return 1
   fi
 }
 
@@ -673,6 +776,87 @@ create_symlinks() {
     ln -s "${karo_context_target}" "${karo_symlink}"
     log_info "Created karo symlink: ${karo_symlink} → ${karo_context_target}"
   fi
+}
+
+create_agent_symlinks() {
+  local target_repo="$1"
+  local agent_name="$2"
+  local agents_dir="${target_repo}/.github/agents"
+  local symlink_path="${agents_dir}/${agent_name}.md"
+  local source_file="${ABS_KINGDOM_PATH}/.github/agents/${agent_name}.md"
+
+  log_info "Creating agent symlink: ${agent_name}.md in ${target_repo}"
+
+  if [[ ! -f "${source_file}" ]]; then
+    log_error "Agent source file not found: ${source_file}"
+    return 1
+  fi
+
+  mkdir -p "${agents_dir}"
+
+  if [[ -L "${symlink_path}" ]]; then
+    local existing_target
+    existing_target=$(readlink "${symlink_path}")
+    if [[ "${existing_target}" == "${source_file}" ]]; then
+      if [[ -e "${symlink_path}" ]]; then
+        log_info "Agent symlink already valid: ${symlink_path}"
+        return 0
+      else
+        log_warn "Agent symlink is broken, recreating: ${symlink_path}"
+        unlink "${symlink_path}"
+      fi
+    else
+      log_warn "Removing incorrect agent symlink: ${symlink_path}"
+      unlink "${symlink_path}"
+    fi
+  elif [[ -e "${symlink_path}" ]]; then
+    log_error "Expected symlink but found regular file: ${symlink_path}"
+    return 1
+  fi
+
+  ln -s "${source_file}" "${symlink_path}"
+  log_info "Created agent symlink: ${symlink_path} → ${source_file}"
+}
+
+create_skill_symlinks() {
+  local target_repo="$1"
+  local skill_name="$2"
+  local skills_dir="${target_repo}/.github/skills"
+  local symlink_path="${skills_dir}/${skill_name}"
+  local source_dir="${ABS_KINGDOM_PATH}/.github/skills/${skill_name}"
+
+  log_info "Creating skill symlink: ${skill_name} in ${target_repo}"
+
+  if [[ ! -d "${source_dir}" ]]; then
+    log_error "Skill source directory not found: ${source_dir}"
+    return 1
+  fi
+
+  mkdir -p "${skills_dir}"
+
+  if [[ -L "${symlink_path}" ]]; then
+    local existing_target
+    if existing_target=$(cd "$(dirname "${symlink_path}")" && cd "$(readlink "${symlink_path}")" && pwd -P 2>/dev/null); then
+      local normalized_source
+      normalized_source=$(cd "${source_dir}" && pwd -P)
+      if [[ "${existing_target}" == "${normalized_source}" ]]; then
+        log_info "Skill symlink already valid: ${symlink_path}"
+        return 0
+      else
+        log_warn "Removing incorrect skill symlink: ${symlink_path}"
+        unlink "${symlink_path}"
+      fi
+    else
+      log_warn "Skill symlink is broken, recreating: ${symlink_path}"
+      unlink "${symlink_path}"
+    fi
+  elif [[ -e "${symlink_path}" ]]; then
+    log_error "Expected symlink but found regular file/directory: ${symlink_path}"
+    return 1
+  fi
+
+  ln -s "${source_dir}" "${symlink_path}"
+  log_info "Created skill symlink: ${symlink_path} → ${source_dir}"
 }
 
 # ============================================================================
@@ -853,6 +1037,14 @@ main() {
       log_error "Failed to create symlinks"
       exit 1
     fi
+    if ! create_agent_symlinks "${karo_path}" "karo"; then
+      log_error "Failed to create Karo agent symlink"
+      exit 1
+    fi
+    if ! create_skill_symlinks "${karo_path}" "send-to-karo"; then
+      log_error "Failed to create Karo skill symlink"
+      exit 1
+    fi
   done
 
   # TASK-006: Validate symlinks
@@ -901,11 +1093,15 @@ main() {
   done
   log_info ""
   log_info "Symlinks:"
+  log_info "  ${ABS_SHOGUN_PATH}/.github/agents/shogun.md → ${ABS_KINGDOM_PATH}/.github/agents/shogun.md"
+  log_info "  ${ABS_SHOGUN_PATH}/.github/skills/send-to-karo → ${ABS_KINGDOM_PATH}/.github/skills/send-to-karo"
   index=0
   for karo_path in "${ACTIVE_KARO_PATHS[@]}"; do
     index=$((index + 1))
     log_info "  ${karo_path}/.agent/kingdom/shogun → ${ABS_SHOGUN_CONTEXT}"
     log_info "  ${karo_path}/.agent/kingdom/karo → ${KARO_CONTEXT_PATHS[$((index - 1))]}"
+    log_info "  ${karo_path}/.github/agents/karo.md → ${ABS_KINGDOM_PATH}/.github/agents/karo.md"
+    log_info "  ${karo_path}/.github/skills/send-to-karo → ${ABS_KINGDOM_PATH}/.github/skills/send-to-karo"
   done
   log_info ""
   log_info "Tmux session:"
