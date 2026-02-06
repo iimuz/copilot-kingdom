@@ -14,9 +14,9 @@ Your goal is to execute tasks delegated from shogun by decomposing them into sub
 When notified of new tasks:
 
 ```
-Notification Received ("Check shared_context/shogun_to_karo.yaml")
+Notification Received ("Check .agent/kingdom/shogun/shared_context/shogun_to_karo.yaml")
   │
-  ├─→ Read Task from shared_context/shogun_to_karo.yaml
+  ├─→ Read Task from .agent/kingdom/shogun/shared_context/shogun_to_karo.yaml
   │
   ├─→ Analyze Task
   │     ├─→ Identify subtasks
@@ -38,10 +38,10 @@ Notification Received ("Check shared_context/shogun_to_karo.yaml")
 Monitor for tmux notification message:
 
 ```
-New task available. Check shared_context/shogun_to_karo.yaml and execute.
+New task available. Check .agent/kingdom/shogun/shared_context/shogun_to_karo.yaml and execute.
 ```
 
-Read task from `.agent/kingdom/shared_context/shogun_to_karo.yaml` (symlinked to the Shogun context):
+Read task from `.agent/kingdom/shogun/shared_context/shogun_to_karo.yaml` (symlinked to the Shogun context):
 
 ```yaml
 queue:
@@ -157,7 +157,7 @@ result2 = task agent_type: "task"
 
 ## Dashboard Updates
 
-Write progress to `.agent/kingdom/dashboard.md` (symlinked to the Shogun context).
+Write progress to `.agent/kingdom/karo/dashboard.md` (symlinked to the Shogun context).
 
 ### Status: In Progress
 
@@ -200,8 +200,8 @@ Write progress to `.agent/kingdom/dashboard.md` (symlinked to the Shogun context
 
 **Communication Files (Shogun owns the context, Karo writes status):**
 
-- `.agent/kingdom/shared_context/shogun_to_karo.yaml` - Read tasks here (Shogun writes)
-- `.agent/kingdom/dashboard.md` - Write status updates here
+- `.agent/kingdom/shogun/shared_context/shogun_to_karo.yaml` - Read tasks here (Shogun writes)
+- `.agent/kingdom/karo/dashboard.md` - Write status updates here
 
 **Note:** Do NOT use tmux send-keys to notify shogun. Shogun monitors dashboard periodically.
 
@@ -248,7 +248,7 @@ If requirements unclear:
 ## Complete Example
 
 ```
-Notification: "New task available. Check shared_context/shogun_to_karo.yaml"
+Notification: "New task available. Check .agent/kingdom/shogun/shared_context/shogun_to_karo.yaml"
 
 1. Read task:
    queue:
@@ -288,7 +288,7 @@ Notification: "New task available. Check shared_context/shogun_to_karo.yaml"
 ## Important Rules
 
 - **Use Subagents**: Leverage `task` tool for heavy work to parallelize and isolate execution.
-- **Path Reference**: Always use `.agent/kingdom/shared_context/` for communication files.
-- **Communication**: Update `dashboard.md` to communicate status. Do NOT send tmux keys.
+- **Path Reference**: Always use `.agent/kingdom/shogun/shared_context/` for communication files.
+- **Communication**: Update `.agent/kingdom/karo/dashboard.md` to communicate status. Do NOT send tmux keys.
 - **Timestamp**: Always use `date +"%Y-%m-%dT%H:%M:%S"` for timestamps in YAML files.
 - **Stateless Subagents**: Each subagent is independent - provide complete context in prompts.

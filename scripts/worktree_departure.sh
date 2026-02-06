@@ -32,14 +32,13 @@ DRY_RUN=false
 EFFECTIVE_KARO_COUNT=0
 
 # Derived paths (initialized after resolution)
-REPO_ROOT=""
-REPO_NAME=""
 ABS_SHOGUN_PATH=""
 ABS_SHOGUN_CONTEXT=""
 SHOGUN_SHARED_CONTEXT=""
 SHOGUN_DASHBOARD=""
 RESOLVED_KARO_PATHS=()
 ACTIVE_KARO_PATHS=()
+KARO_CONTEXT_PATHS=()
 
 # Colors for output
 readonly RED='\033[0;31m'
@@ -243,6 +242,12 @@ resolve_paths() {
   ABS_SHOGUN_CONTEXT="${ABS_SHOGUN_PATH}/${CONTEXT_BASE}/shogun"
   SHOGUN_SHARED_CONTEXT="${ABS_SHOGUN_CONTEXT}/shared_context"
   SHOGUN_DASHBOARD="${ABS_SHOGUN_CONTEXT}/dashboard.md"
+
+  KARO_CONTEXT_PATHS=()
+  local i
+  for ((i = 0; i < EFFECTIVE_KARO_COUNT; i++)); do
+    KARO_CONTEXT_PATHS+=("${ABS_SHOGUN_PATH}/${CONTEXT_BASE}/karo$((i + 1))")
+  done
 }
 
 detect_duplicates() {
@@ -367,7 +372,8 @@ log_planned_actions() {
     else
       log_info "  Create Karo worktree (${index}): ${karo_path}"
     fi
-    log_info "  Create symlink: ${karo_path}/.agent/kingdom → ${ABS_SHOGUN_CONTEXT}"
+    log_info "  Create symlink: ${karo_path}/.agent/kingdom/shogun → ${ABS_SHOGUN_CONTEXT}"
+    log_info "  Create symlink: ${karo_path}/.agent/kingdom/karo → ${KARO_CONTEXT_PATHS[$((index - 1))]}"
   done
 
   log_info "  Create tmux session with ${EFFECTIVE_KARO_COUNT} Karo pane(s)"
@@ -418,10 +424,17 @@ validate_all_symlinks() {
 
   local all_valid=true
 
+  local index=0
   local karo_path
   for karo_path in "${ACTIVE_KARO_PATHS[@]}"; do
-    local karo_symlink="${karo_path}/.agent/kingdom"
-    if ! validate_symlink "${karo_symlink}" "${ABS_SHOGUN_CONTEXT}"; then
+    index=$((index + 1))
+    local shogun_symlink="${karo_path}/.agent/kingdom/shogun"
+    if ! validate_symlink "${shogun_symlink}" "${ABS_SHOGUN_CONTEXT}"; then
+      all_valid=false
+    fi
+
+    local karo_symlink="${karo_path}/.agent/kingdom/karo"
+    if ! validate_symlink "${karo_symlink}" "${KARO_CONTEXT_PATHS[$((index - 1))]}"; then
       all_valid=false
     fi
   done
@@ -540,40 +553,126 @@ EOF
   fi
 }
 
+initialize_karo_workspace() {
+  log_info "Initializing Karo workspaces..."
+
+  local karo_context
+  for karo_context in "${KARO_CONTEXT_PATHS[@]}"; do
+    if [[ ! -d "${karo_context}" ]]; then
+      mkdir -p "${karo_context}"
+      log_info "Created Karo context directory: ${karo_context}"
+    else
+      log_warn "Karo context directory already exists: ${karo_context}"
+    fi
+
+    local karo_dashboard="${karo_context}/dashboard.md"
+    if [[ ! -f "${karo_dashboard}" ]]; then
+      local karo_name
+      karo_name=$(basename "${karo_context}")
+      cat >"${karo_dashboard}" <<EOF
+# ${karo_name} Dashboard
+
+**Last Updated**: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+## Status
+
+- **Agent**: Idle
+
+## Current Task
+
+None
+
+## Recent Activity
+
+- Agent initialized
+
+---
+
+*This dashboard is managed by ${karo_name}.*
+EOF
+      log_info "Initialized Karo dashboard: ${karo_dashboard}"
+    else
+      log_warn "Karo dashboard already exists: ${karo_dashboard}"
+    fi
+  done
+}
+
 # ============================================================================
 # Symlink Creation
 # ============================================================================
 
 create_symlinks() {
   local karo_worktree="$1"
-  local karo_symlink="${karo_worktree}/.agent/kingdom"
+  local karo_index="$2"
+  local karo_kingdom_dir="${karo_worktree}/.agent/kingdom"
+  local shogun_symlink="${karo_kingdom_dir}/shogun"
+  local karo_symlink="${karo_kingdom_dir}/karo"
+  local karo_context_target="${KARO_CONTEXT_PATHS[$((karo_index - 1))]}"
 
-  log_info "Creating symlink from Karo worktree to Shogun context..."
+  log_info "Creating dual symlinks for Karo-${karo_index}..."
 
-  local abs_shogun_context="${ABS_SHOGUN_CONTEXT}"
+  mkdir -p "$(dirname "${karo_kingdom_dir}")"
 
-  mkdir -p "$(dirname "${karo_symlink}")"
-
-  if [[ -L "${karo_symlink}" ]]; then
-    local existing_target
-    if existing_target=$(cd "$(dirname "${karo_symlink}")" && cd "$(readlink "${karo_symlink}")" && pwd -P); then
-      if [[ "${existing_target}" == "${abs_shogun_context}" ]]; then
-        log_info "Symlink already valid: ${karo_symlink} → ${abs_shogun_context}"
-        return 0
-      fi
-    fi
-  fi
-
-  if [[ -L "${karo_symlink}" ]]; then
-    log_warn "Removing existing kingdom path: ${karo_symlink}"
-    unlink "${karo_symlink}"
-  elif [[ -e "${karo_symlink}" ]]; then
-    log_error "Expected symlink but found regular file/directory: ${karo_symlink}"
+  # Migration: convert legacy single symlink to directory
+  if [[ -L "${karo_kingdom_dir}" ]]; then
+    log_warn "Migrating legacy kingdom symlink: ${karo_kingdom_dir}"
+    unlink "${karo_kingdom_dir}"
+  elif [[ -e "${karo_kingdom_dir}" && ! -d "${karo_kingdom_dir}" ]]; then
+    log_error "Expected directory or symlink but found file: ${karo_kingdom_dir}"
     return 1
   fi
 
-  ln -s "${abs_shogun_context}" "${karo_symlink}"
-  log_info "Created symlink: ${karo_symlink} → ${abs_shogun_context}"
+  mkdir -p "${karo_kingdom_dir}"
+
+  # Create/validate shogun symlink
+  if [[ -L "${shogun_symlink}" ]]; then
+    local existing_target
+    if existing_target=$(cd "$(dirname "${shogun_symlink}")" && cd "$(readlink "${shogun_symlink}")" && pwd -P); then
+      if [[ "${existing_target}" == "${ABS_SHOGUN_CONTEXT}" ]]; then
+        log_info "Shogun symlink already valid: ${shogun_symlink}"
+      else
+        log_warn "Removing incorrect shogun symlink: ${shogun_symlink}"
+        unlink "${shogun_symlink}"
+        ln -s "${ABS_SHOGUN_CONTEXT}" "${shogun_symlink}"
+        log_info "Created shogun symlink: ${shogun_symlink} → ${ABS_SHOGUN_CONTEXT}"
+      fi
+    else
+      unlink "${shogun_symlink}"
+      ln -s "${ABS_SHOGUN_CONTEXT}" "${shogun_symlink}"
+      log_info "Created shogun symlink: ${shogun_symlink} → ${ABS_SHOGUN_CONTEXT}"
+    fi
+  elif [[ -e "${shogun_symlink}" ]]; then
+    log_error "Expected symlink but found regular file/directory: ${shogun_symlink}"
+    return 1
+  else
+    ln -s "${ABS_SHOGUN_CONTEXT}" "${shogun_symlink}"
+    log_info "Created shogun symlink: ${shogun_symlink} → ${ABS_SHOGUN_CONTEXT}"
+  fi
+
+  # Create/validate karo symlink
+  if [[ -L "${karo_symlink}" ]]; then
+    local existing_karo_target
+    if existing_karo_target=$(cd "$(dirname "${karo_symlink}")" && cd "$(readlink "${karo_symlink}")" && pwd -P); then
+      if [[ "${existing_karo_target}" == "${karo_context_target}" ]]; then
+        log_info "Karo symlink already valid: ${karo_symlink}"
+      else
+        log_warn "Removing incorrect karo symlink: ${karo_symlink}"
+        unlink "${karo_symlink}"
+        ln -s "${karo_context_target}" "${karo_symlink}"
+        log_info "Created karo symlink: ${karo_symlink} → ${karo_context_target}"
+      fi
+    else
+      unlink "${karo_symlink}"
+      ln -s "${karo_context_target}" "${karo_symlink}"
+      log_info "Created karo symlink: ${karo_symlink} → ${karo_context_target}"
+    fi
+  elif [[ -e "${karo_symlink}" ]]; then
+    log_error "Expected symlink but found regular file/directory: ${karo_symlink}"
+    return 1
+  else
+    ln -s "${karo_context_target}" "${karo_symlink}"
+    log_info "Created karo symlink: ${karo_symlink} → ${karo_context_target}"
+  fi
 }
 
 # ============================================================================
@@ -696,10 +795,6 @@ main() {
   resolve_paths
   validate_paths
 
-  REPO_ROOT=$(git -C "${ABS_SHOGUN_PATH}" rev-parse --show-toplevel)
-  REPO_NAME=$(basename "${REPO_ROOT}")
-
-  log_info "Configuration:"
   log_info "  Shogun path: ${ABS_SHOGUN_PATH}"
   log_info "  Karo count: ${EFFECTIVE_KARO_COUNT}"
   if [[ -n "${WORKTREE_CONFIG_FILE}" ]]; then
@@ -733,6 +828,12 @@ main() {
     exit 1
   fi
 
+  # Initialize Karo workspaces (per-Karo dashboards)
+  if ! initialize_karo_workspace; then
+    log_error "Failed to initialize Karo workspaces"
+    exit 1
+  fi
+
   # TASK-003: Create Karo worktrees
   index=0
   for karo_path in "${ACTIVE_KARO_PATHS[@]}"; do
@@ -745,8 +846,10 @@ main() {
   done
 
   # TASK-005: Create symlinks
+  index=0
   for karo_path in "${ACTIVE_KARO_PATHS[@]}"; do
-    if ! create_symlinks "${karo_path}"; then
+    index=$((index + 1))
+    if ! create_symlinks "${karo_path}" "${index}"; then
       log_error "Failed to create symlinks"
       exit 1
     fi
@@ -798,8 +901,11 @@ main() {
   done
   log_info ""
   log_info "Symlinks:"
+  index=0
   for karo_path in "${ACTIVE_KARO_PATHS[@]}"; do
-    log_info "  ${karo_path}/.agent/kingdom → ${ABS_SHOGUN_CONTEXT}"
+    index=$((index + 1))
+    log_info "  ${karo_path}/.agent/kingdom/shogun → ${ABS_SHOGUN_CONTEXT}"
+    log_info "  ${karo_path}/.agent/kingdom/karo → ${KARO_CONTEXT_PATHS[$((index - 1))]}"
   done
   log_info ""
   log_info "Tmux session:"
