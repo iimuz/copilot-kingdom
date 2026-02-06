@@ -1,6 +1,7 @@
 multi-agent-sample/
 
 # Multi-worktree system
+# Deprecated: retained for WORKTREE_BASE=./worktrees compatibility
 worktrees/
 **/queue
 **/shared_context/

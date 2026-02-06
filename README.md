@@ -16,7 +16,7 @@ User
   ▼ Command
 ┌─────────────────────┐
 │  SHOGUN (Pane 0)   │ ← Strategic agent: planning + execution + delegation
-│  /worktrees/shogun/ │   Works directly on simple tasks
+│ ../wt-{repo}-shogun │   Works directly on simple tasks
 │  ├─ queue/ ────────┼─→ Symlink to Karo's shared_context/
 │  └─ dashboard.md ──┼─→ Symlink to Karo's dashboard.md
 └──────────┬──────────┘
@@ -24,7 +24,7 @@ User
            ▼
 ┌─────────────────────┐
 │  KARO (Pane 1)     │ ← Orchestrator: task distribution via subagents
-│  /worktrees/karo-1/ │   Uses task tool for on-demand workers
+│ ../wt-{repo}-karo-1 │   Uses task tool for on-demand workers
 │  ├─ shared_context/ │   (Real directory, symlink target)
 │  │  └─ shogun_to_karo.yaml
 │  └─ dashboard.md    │   (Real file, owned by Karo)
@@ -85,7 +85,7 @@ gh auth status
 
 This script will:
 
-1. Create git worktrees for Shogun and Karo at `./worktrees/`
+1. Create git worktrees for Shogun and Karo as sibling worktrees (`../wt-{repo}-shogun`, `../wt-{repo}-karo-1`)
 2. Set up symlinks from Shogun to Karo's shared context
 3. Initialize communication files (YAML, dashboard)
 4. Launch a tmux session with 2 panes
@@ -128,14 +128,21 @@ tmux kill-session -t multi
 3. Clean up worktrees (optional):
 
 ```bash
-git worktree remove worktrees/shogun
-git worktree remove worktrees/karo-1
-rm -rf worktrees/
+git worktree remove ../wt-{repo}-shogun --force
+git worktree remove ../wt-{repo}-karo-1 --force
+git worktree prune
+
+# Legacy compatibility (WORKTREE_BASE=./worktrees)
+git worktree remove ./worktrees/karo-1 --force
+git worktree remove ./worktrees/shogun --force
+git worktree prune
 ```
 
 ## Configuration
 
 ### Custom Worktree Paths
+
+Default worktrees are created as siblings of the repository (`../wt-{repo}-shogun`, `../wt-{repo}-karo-1`). Set `WORKTREE_BASE` to keep the legacy `./worktrees` layout.
 
 Set environment variables before running the departure script:
 
@@ -214,20 +221,21 @@ copilot-kingdom/
 │           └── scripts/send.sh
 ├── scripts/
 │   └── worktree_departure.sh     # System startup script
-├── worktrees/                    # Created at runtime
-│   ├── shogun/                   # Shogun's workspace
-│   │   ├── queue/ → ../karo-1/shared_context/
-│   │   └── dashboard.md → ../karo-1/dashboard.md
-│   └── karo-1/                   # Karo's workspace
-│       ├── shared_context/       # Real directory
-│       │   └── shogun_to_karo.yaml
-│       └── dashboard.md          # Real file
 └── multi-agent-sample/           # Original reference implementation
+
+Sibling worktrees (default):
+../wt-{repo}-shogun/              # Shogun's workspace
+├── queue/ → ../wt-{repo}-karo-1/shared_context/
+└── dashboard.md → ../wt-{repo}-karo-1/dashboard.md
+../wt-{repo}-karo-1/              # Karo's workspace
+├── shared_context/               # Real directory
+│   └── shogun_to_karo.yaml
+└── dashboard.md                  # Real file
 ```
 
 ## Communication Flow
 
-1. **Shogun receives user request** in `/worktrees/shogun/`
+1. **Shogun receives user request** in `../wt-{repo}-shogun/`
 2. **Shogun decides**:
    - Simple task → Execute directly
    - Complex task → Write to `queue/shogun_to_karo.yaml` (via symlink)

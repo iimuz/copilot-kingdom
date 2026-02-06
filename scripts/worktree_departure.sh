@@ -22,6 +22,7 @@ KARO_COUNT="${KARO_COUNT:-1}"
 # Derived paths (initialized after repo root detection)
 REPO_ROOT=""
 ABS_CONTEXT_BASE=""
+ABS_SHOGUN_CONTEXT=""
 SHOGUN_WORKTREE=""
 SHOGUN_CONTEXT=""
 SHOGUN_SHARED_CONTEXT=""
@@ -68,12 +69,19 @@ validate_symlink() {
   fi
 
   local actual_target
+  local resolved_target
   actual_target=$(readlink "${symlink_path}")
 
-  if [[ "${actual_target}" != "${expected_target}" ]]; then
+  if ! resolved_target=$(cd "$(dirname "${symlink_path}")" && cd "${actual_target}" && pwd -P); then
+    log_error "Failed to resolve symlink target: ${symlink_path}"
+    return 1
+  fi
+
+  if [[ "${resolved_target}" != "${expected_target}" ]]; then
     log_error "Symlink target mismatch: ${symlink_path}"
     log_error "  Expected: ${expected_target}"
     log_error "  Actual: ${actual_target}"
+    log_error "  Resolved: ${resolved_target}"
     return 1
   fi
 
@@ -86,14 +94,10 @@ validate_all_symlinks() {
 
   local all_valid=true
 
-  # Convert to absolute paths for validation
-  local abs_shogun_context
-  abs_shogun_context=$(cd "$(dirname "${SHOGUN_CONTEXT}")" && pwd)/$(basename "${SHOGUN_CONTEXT}")
-
   for ((i = 1; i <= KARO_COUNT; i++)); do
     local karo_worktree="${WORKTREE_BASE}/karo-${i}"
     local karo_symlink="${karo_worktree}/.agent/kingdom"
-    if ! validate_symlink "${karo_symlink}" "${abs_shogun_context}"; then
+    if ! validate_symlink "${karo_symlink}" "${ABS_SHOGUN_CONTEXT}"; then
       all_valid=false
     fi
   done
@@ -222,11 +226,19 @@ create_symlinks() {
 
   log_info "Creating symlink from Karo worktree to Shogun context..."
 
-  # Get absolute paths for symlink targets
-  local abs_shogun_context
-  abs_shogun_context=$(cd "$(dirname "${SHOGUN_CONTEXT}")" && pwd)/$(basename "${SHOGUN_CONTEXT}")
+  local abs_shogun_context="${ABS_SHOGUN_CONTEXT}"
 
   mkdir -p "$(dirname "${karo_symlink}")"
+
+  if [[ -L "${karo_symlink}" ]]; then
+    local existing_target
+    if existing_target=$(cd "$(dirname "${karo_symlink}")" && cd "$(readlink "${karo_symlink}")" && pwd -P); then
+      if [[ "${existing_target}" == "${abs_shogun_context}" ]]; then
+        log_info "Symlink already valid: ${karo_symlink} → ${abs_shogun_context}"
+        return 0
+      fi
+    fi
+  fi
 
   if [[ -L "${karo_symlink}" ]] || [[ -e "${karo_symlink}" ]]; then
     log_warn "Removing existing kingdom path: ${karo_symlink}"
@@ -359,6 +371,7 @@ main() {
   ABS_CONTEXT_BASE="${REPO_ROOT}/${CONTEXT_BASE}"
   SHOGUN_WORKTREE="${REPO_ROOT}"
   SHOGUN_CONTEXT="${ABS_CONTEXT_BASE}/shogun"
+  ABS_SHOGUN_CONTEXT="$(cd "${SHOGUN_WORKTREE}" && pwd -P)/${CONTEXT_BASE}/shogun"
   SHOGUN_SHARED_CONTEXT="${SHOGUN_CONTEXT}/shared_context"
   SHOGUN_DASHBOARD="${SHOGUN_CONTEXT}/dashboard.md"
 

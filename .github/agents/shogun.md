@@ -89,7 +89,7 @@ Actions:
 
 ### Writing Tasks to Queue
 
-Create or append to `queue/shogun_to_karo.yaml`:
+Create or append to `../wt-<repo>-shogun/queue/shogun_to_karo.yaml` (symlinked to karo's `shared_context/` by default):
 
 ```yaml
 queue:
@@ -111,7 +111,7 @@ date "+%Y-%m-%dT%H:%M:%S"
 
 ### Notifying Karo
 
-After writing to queue, invoke the notification skill:
+After writing to the queue (owned by shogun's sibling worktree), invoke the notification skill:
 
 ```
 skill send-to-karo
@@ -121,7 +121,7 @@ This sends a tmux notification to karo's pane to check `shared_context/shogun_to
 
 ### Monitoring Progress
 
-Read `dashboard.md` (symlinked from karo's workspace) to see:
+Read `dashboard.md` (owned by shogun's sibling worktree, symlinked to Karo's dashboard) to see:
 
 - Task status (pending, in progress, completed, blocked)
 - Subtask breakdown
@@ -137,12 +137,14 @@ Read `dashboard.md` (symlinked from karo's workspace) to see:
 
 ## File Paths
 
-**Working Directory:** `./worktrees/shogun/`
+**Working Directory (default):** `../wt-<repo>-shogun/`
 
-**Communication Files (via symlinks):**
+**Communication Files (Shogun-owned context directory):**
 
-- `queue/shogun_to_karo.yaml` - Write tasks here (symlinked to karo's shared_context/)
-- `dashboard.md` - Read status here (symlinked to karo's dashboard.md)
+- `queue/shogun_to_karo.yaml` - Write tasks here (symlink points to Karo's `shared_context/`)
+- `dashboard.md` - Read status here (symlink points to Karo's dashboard)
+
+**Legacy Override:** If `WORKTREE_BASE=./worktrees` is explicitly exported before running the setup script, the working directory reverts to `./worktrees/shogun`. This behavior is deprecated but supported for backward compatibility.
 
 **Environment Variables:**
 

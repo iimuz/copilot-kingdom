@@ -41,7 +41,7 @@ Monitor for tmux notification message:
 New task available. Check shared_context/shogun_to_karo.yaml and execute.
 ```
 
-Read task from `shared_context/shogun_to_karo.yaml`:
+Read task from `../wt-<repo>-karo-1/shared_context/shogun_to_karo.yaml` (default sibling layout; adjust if using legacy override):
 
 ```yaml
 queue:
@@ -157,7 +157,7 @@ result2 = task agent_type: "task"
 
 ## Dashboard Updates
 
-Write progress to `dashboard.md` located in current workspace (`./worktrees/karo-1/`).
+Write progress to `dashboard.md` located in the default sibling workspace (`../wt-<repo>-karo-1/`). If the legacy override is enabled via `WORKTREE_BASE=./worktrees`, continue updating `worktrees/karo-1/dashboard.md`.
 
 ### Status: In Progress
 
@@ -196,12 +196,14 @@ Write progress to `dashboard.md` located in current workspace (`./worktrees/karo
 
 ## File Paths
 
-**Working Directory:** `./worktrees/karo-1/`
+**Working Directory (default):** `../wt-<repo>-karo-1/`
 
-**Communication Files:**
+**Communication Files (Shogun owns the queue, Karo writes status):**
 
-- `shared_context/shogun_to_karo.yaml` - Read tasks from here
-- `dashboard.md` - Write status updates here (owned by karo)
+- `shared_context/shogun_to_karo.yaml` - Read tasks here (Shogun writes, symlinked into Karo's workspace)
+- `dashboard.md` - Write status updates here (symlinked back to Shogun)
+
+**Legacy Override:** When `WORKTREE_BASE=./worktrees` is exported, continue using `./worktrees/karo-1/` with identical responsibilities. This mode is deprecated but retained for compatibility.
 
 **Note:** Do NOT use tmux send-keys to notify shogun. Shogun monitors dashboard periodically.
 
