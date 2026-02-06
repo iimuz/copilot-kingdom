@@ -15,7 +15,7 @@ Use this skill in the following sequence:
 
 ```
 1. Write task to queue/shogun_to_karo.yaml
-2. Invoke: skill send-to-karo
+2. Invoke: skill send-to-karo <karo_pane_number>
 3. Karo receives notification and processes task
 ```
 
@@ -29,9 +29,10 @@ Use this skill in the following sequence:
 
 The skill executes `scripts/notify.sh` which:
 
-1. Validates environment variables (`AGENT_SESSION`, `AGENT_PANE_KARO`)
-2. Sends message to karo's tmux pane via `tmux send-keys`
-3. Uses two-step sending (message + Enter after delay)
+1. Detects tmux session/window from `$TMUX` (falls back to `multi:agents` when not in tmux)
+2. Accepts karo pane number as positional argument
+3. Sends message to karo's tmux pane via `tmux send-keys`
+4. Uses two-step sending (message + Enter after delay)
 
 **Two-step sending prevents message loss:**
 
@@ -39,18 +40,27 @@ The skill executes `scripts/notify.sh` which:
 - Step 2: Wait 1 second, send Enter key
 - Ensures message is processed even if karo is mid-execution
 
+**Invocation:**
+
+```
+notify.sh <karo_pane_number>
+```
+
+Example:
+
+```
+notify.sh 1
+```
+
 ## Requirements
-
-**Environment Variables (set by departure script):**
-
-- `AGENT_SESSION` - tmux session name (e.g., "multi")
-- `AGENT_PANE_KARO` - Karo's pane number (e.g., "1")
 
 **Prerequisites:**
 
 - Must be invoked from shogun's workspace
 - Karo must be running in tmux session
+- Must know karo's pane number (typically 1, 2, etc.)
 - Task must be written to queue before notification
+- Tmux session detection is automatic
 
 ## Usage Example
 
@@ -72,10 +82,13 @@ cat >> queue/shogun_to_karo.yaml <<YAML_EOF
       Include session management and token refresh.
 YAML_EOF
 
-# Step 3: Notify karo
-skill send-to-karo
+# Step 3: Find karo pane if unknown
+tmux list-panes -F "#{pane_index}: #{pane_current_command}"
 
-# Step 4: Monitor dashboard.md for progress
+# Step 4: Notify karo (pane 1)
+skill send-to-karo 1
+
+# Step 5: Monitor dashboard.md for progress
 ```
 
 ## Notification Message
@@ -102,18 +115,25 @@ Both point to the same file via symlinks.
 
 ## Error Handling
 
-### Environment Variable Missing
+### Missing Argument
 
 ```
-Error: AGENT_SESSION environment variable not set
+Error: karo_pane_number argument is required
 ```
 
-**Solution:** Verify departure script set environment variables:
+**Solution:** Provide karo's pane number:
 
 ```bash
-echo $AGENT_SESSION    # Should show session name
-echo $AGENT_PANE_KARO  # Should show pane number
+skill send-to-karo 1
 ```
+
+### Invalid Argument
+
+```
+Error: karo_pane_number must be a number
+```
+
+**Solution:** Use a numeric pane value (e.g., 1, 2).
 
 ### Karo Not Responding
 
@@ -122,7 +142,7 @@ If karo doesn't respond after notification:
 1. **Check karo is running:**
 
    ```bash
-   tmux list-panes -t $AGENT_SESSION
+   tmux list-panes
    ```
 
 2. **Verify queue file written:**
@@ -134,7 +154,7 @@ If karo doesn't respond after notification:
 3. **Retry notification:**
 
    ```
-   skill send-to-karo
+   skill send-to-karo <karo_pane_number>
    ```
 
 4. **Check dashboard for blockers:**
@@ -148,7 +168,6 @@ If karo doesn't respond after notification:
 
 Bash script that performs the tmux notification. Includes:
 
-- Environment variable validation
 - Two-step message sending
 - Error reporting
 
